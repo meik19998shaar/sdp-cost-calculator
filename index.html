@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cost calculator — Syrian Data Platform</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --card: #ffffff;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: #e1e0d9;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --card: #141413;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: #2c2c2a;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .intro { color: var(--ink-2); margin: 0 0 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 800px) { .inputs { grid-template-columns: 1fr; } }
+  .input label { display: block; font-weight: 600; font-size: 14px; }
+  .input .hint { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .input input {
+    font: inherit; font-size: 18px; width: 100%;
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--ink); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .reset { margin-top: 12px; }
+  button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer;
+  }
+  .totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 800px) { .totals { grid-template-columns: 1fr; } }
+  .total { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .total .label { color: var(--ink-2); font-size: 13px; }
+  .total .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .total .sub { color: var(--muted); font-size: 12px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .two { grid-template-columns: 1fr; } }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td, th { padding: 7px 4px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; }
+  td:first-child, th:first-child { text-align: left; }
+  th { color: var(--ink-2); font-size: 12px; font-weight: 600; }
+  tr.strong td { font-weight: 700; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .status .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .status.good .dot { background: var(--good); }
+  .status.warning .dot { background: var(--warning); }
+  .status.critical .dot { background: var(--critical); }
+  .legend { display: flex; gap: 18px; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+  .legend .key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .chart-wrap { position: relative; }
+  .tooltip {
+    position: absolute; display: none; pointer-events: none; z-index: 5;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 190px;
+  }
+  .tooltip .row { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+  .tooltip .name { color: var(--ink-2); }
+  .tooltip .k { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .tooltip strong { font-variant-numeric: tabular-nums; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--ink-2); font-size: 14px; }
+  .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .assumptions li { margin: 3px 0; }
+  .assumptions { color: var(--ink-2); font-size: 14px; padding-left: 18px; margin: 0; }
+  .facts-group { margin-top: 14px; }
+  .facts-group:first-of-type { margin-top: 0; }
+  .facts-group h3 { font-size: 13px; color: var(--ink-2); margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .facts { grid-template-columns: 1fr 1fr; } }
+  .fact { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .fact .value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .fact .label { font-size: 13px; font-weight: 600; }
+  .fact .source { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Cost calculator — Syrian Data Platform</h1>
+  <p class="intro">The first part shows what we measured. The second part calculates the monthly cost for the number of users that you enter.</p>
+
+  <section class="card">
+    <h2>What we measured</h2>
+    <div class="facts" id="facts"></div>
+  </section>
+
+  <section class="card">
+    <h2>Your numbers</h2>
+    <div class="inputs">
+      <div class="input">
+        <label for="users">Registered users</label>
+        <span class="hint">All accounts on the platform</span>
+        <input type="number" id="users" min="0" step="500">
+      </div>
+      <div class="input">
+        <label for="dailyShare">Users who visit each day (%)</label>
+        <span class="hint">Share of registered users who open the site on a day</span>
+        <input type="number" id="dailyShare" min="0" max="100" step="1">
+      </div>
+      <div class="input">
+        <label for="questions">AI question limit per user per month</label>
+        <span class="hint">Every user is counted at the full limit</span>
+        <input type="number" id="questions" min="0" step="1">
+      </div>
+    </div>
+    <button type="button" class="reset" id="reset">Clear</button>
+  </section>
+
+  <section class="card" id="empty-msg">
+    <p style="margin:0" id="empty-text">Enter the 3 numbers above to see the costs.</p>
+  </section>
+
+  <div id="results" hidden>
+
+  <section class="card">
+    <h2>Monthly cost</h2>
+    <div class="totals" id="totals"></div>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>Cost breakdown</h2>
+      <table><tbody id="breakdown"></tbody></table>
+    </section>
+    <section class="card">
+      <h2>Database</h2>
+      <table><tbody id="database"></tbody></table>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Monthly cost by number of users</h2>
+    <div class="legend" id="legend"></div>
+    <div class="chart-wrap" id="chart-wrap">
+      <svg id="chart" viewBox="0 0 900 320" width="100%" role="img" aria-label="Monthly cost by number of registered users"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+    <p class="note">The other two inputs stay the same. The database size grows when the users pass its limit.</p>
+    <details>
+      <summary>Table view</summary>
+      <table>
+        <thead><tr><th>Registered users</th><th>Database size</th><th>Database and servers</th><th>AI</th><th>Total</th><th>Per user</th></tr></thead>
+        <tbody id="scenario"></tbody>
+      </table>
+    </details>
+  </section>
+
+  </div>
+
+  <section class="card">
+    <h2>Values the calculator uses that are not measured</h2>
+    <ul class="assumptions" id="assumptions"></ul>
+  </section>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- Fixed values (REPORT.md, 2026-10-08) ---------- */
+const AI_COST_PER_QUESTION = 0.0051;   // measured on 93 questions, 2026-10-08
+const OTHER_GOOGLE_CLOUD = 5.84;       // backend, frontend, chatbot, jobs, storage (September bill)
+const MINUTES_PER_DAY = 24 * 60;       // visits are spread evenly over the day (no busy hour)
+const VISIT_MINUTES = 10;              // one visit
+const FREE_CAPACITY = 0.30;            // keep 30% of the database free
+// Users at once assume average optimization (caching, indexes, faster queries):
+// about 4x the measured limit today (50). Careful case 3x, good case 6x or more.
+// The whole database is 2.4 GB, so 8 GB of memory is enough. Only CPU grows.
+const DB_SIZES = [
+  { name: '2 CPU, 8 GB (now)', cost: 287.04, usersAtOnce: 200 },
+  { name: '4 CPU, 8 GB', cost: 460, usersAtOnce: 400 },
+];
+const DEFAULTS = { users: null, dailyShare: null, questions: null };
+const CHART_POINTS = [1000, 2500, 5000, 7500, 10000, 15000, 20000, 25000, 30000, 40000, 50000];
+const STORAGE_KEY = 'sdp-cost-calculator-v3';
+
+/* ---------- State ---------- */
+let state = load();
+function load() {
+  try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')); }
+  catch (e) { return Object.assign({}, DEFAULTS); }
+}
+function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+
+/* ---------- Format ---------- */
+const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+function money(x) {
+  if (!isFinite(x)) return '—';
+  if (x === 0) return '$0';
+  if (x < 0.1) return '$' + x.toFixed(4);
+  if (x < 100) return '$' + x.toFixed(2);
+  return '$' + nf0.format(x);
+}
+function count(x) { return isFinite(x) ? nf0.format(x) : '—'; }
+
+/* ---------- Calculation ---------- */
+function calc(users, dailyShare, questions) {
+  const atOnceShare = (dailyShare / 100) * (VISIT_MINUTES / MINUTES_PER_DAY);
+  const usersAtOnce = users * atOnceShare;
+  let sizeIndex = DB_SIZES.findIndex(s => usersAtOnce <= s.usersAtOnce * (1 - FREE_CAPACITY));
+  const overLargest = sizeIndex === -1;
+  if (overLargest) sizeIndex = DB_SIZES.length - 1;
+  const size = DB_SIZES[sizeIndex];
+  const database = size.cost;
+  const servers = database + OTHER_GOOGLE_CLOUD;
+  const aiQuestions = users * questions;
+  const ai = aiQuestions * AI_COST_PER_QUESTION;
+  const total = servers + ai;
+  const upgradeAt = atOnceShare > 0 ? size.usersAtOnce * (1 - FREE_CAPACITY) / atOnceShare : Infinity;
+  return {
+    users, usersAtOnce, size, sizeIndex, overLargest, database, servers, aiQuestions, ai, total,
+    perUser: users > 0 ? total / users : NaN,
+    used: usersAtOnce / size.usersAtOnce,
+    upgradeAt,
+  };
+}
+
+/* ---------- Render helpers ---------- */
+function rows(tbody, list) {
+  tbody.textContent = '';
+  for (const [label, value, strong] of list) {
+    const tr = document.createElement('tr');
+    if (strong) tr.className = 'strong';
+    const a = document.createElement('td'); a.textContent = label;
+    const b = document.createElement('td');
+    if (value instanceof Node) b.appendChild(value); else b.textContent = value;
+    tr.append(a, b);
+    tbody.appendChild(tr);
+  }
+}
+function status(r) {
+  const s = document.createElement('span');
+  let level = 'good', text = 'OK';
+  if (r.overLargest) { level = 'critical'; text = 'Over the limit: optimize more or add CPU'; }
+  else if (r.used > 1 - FREE_CAPACITY) { level = 'warning'; text = 'Near the limit'; }
+  s.className = 'status ' + level;
+  const dot = document.createElement('span'); dot.className = 'dot';
+  s.append(dot, document.createTextNode(text));
+  return s;
+}
+
+function renderTotals(r) {
+  const box = document.getElementById('totals');
+  box.textContent = '';
+  const n = count(r.users);
+  const aiPerUser = state.questions * AI_COST_PER_QUESTION;
+  const items = [
+    ['Total per month, all ' + n + ' users', money(r.total),
+      money(r.total * 12) + ' per year'],
+    ['Per user per month', money(r.perUser),
+      'AI ' + money(aiPerUser) + ' (' + count(state.questions) + ' × ' + money(AI_COST_PER_QUESTION) + ') + database and servers ' + money(r.servers / r.users)],
+    ['AI per day, all ' + n + ' users', money(r.ai / 30),
+      n + ' users × ' + count(state.questions) + ' questions ÷ 30 days = ' + count(r.aiQuestions / 30) + ' questions a day'],
+  ];
+  for (const [label, value, sub] of items) {
+    const d = document.createElement('div'); d.className = 'total';
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    const v = document.createElement('div'); v.className = 'value'; v.textContent = value;
+    const s = document.createElement('div'); s.className = 'sub'; s.textContent = sub;
+    d.append(l, v, s);
+    box.appendChild(d);
+  }
+}
+
+function renderBreakdown(r) {
+  rows(document.getElementById('breakdown'), [
+    ['Database (' + r.size.name + ')', money(r.database)],
+    ['Other Google Cloud services', money(OTHER_GOOGLE_CLOUD)],
+    ['AI (' + count(r.aiQuestions) + ' questions × ' + money(AI_COST_PER_QUESTION) + ')', money(r.ai)],
+    ['Total per month', money(r.total), true],
+    ['AI per user per month (full limit)', money(state.questions * AI_COST_PER_QUESTION)],
+    ['Database and servers per user per month', money(r.users > 0 ? r.servers / r.users : NaN)],
+  ]);
+}
+
+function renderDatabase(r) {
+  rows(document.getElementById('database'), [
+    ['Users on the site at the same time (average)', count(Math.round(r.usersAtOnce))],
+    ['Database size needed', r.size.name],
+    ['Limit of this size (users at the same time)', count(r.size.usersAtOnce)],
+    ['Capacity used', count(r.used * 100) + '%'],
+    ['Status', status(r)],
+    ['Next upgrade at about', r.overLargest ? '—' : count(Math.round(r.upgradeAt / 100) * 100) + ' registered users'],
+  ]);
+}
+
+/* ---------- Chart: stacked bars (database and servers + AI) ---------- */
+function renderChart() {
+  const svg = document.getElementById('chart');
+  const W = 900, H = 320, L = 70, R = 16, T = 16, B = 44;
+  const ns = 'http://www.w3.org/2000/svg';
+  const points = [...new Set([...CHART_POINTS, state.users])].filter(n => n > 0).sort((a, b) => a - b);
+  const data = points.map(n => calc(n, state.dailyShare, state.questions));
+  const css = getComputedStyle(document.documentElement);
+  const c1 = css.getPropertyValue('--series-1').trim();
+  const c2 = css.getPropertyValue('--series-2').trim();
+  const maxV = Math.max(...data.map(d => d.total), 1);
+  const nice = (() => {
+    const p = Math.pow(10, Math.floor(Math.log10(maxV)));
+    for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= maxV * 1.05) return m * p;
+    return 10 * p;
+  })();
+  const y = v => T + (1 - v / nice) * (H - T - B);
+  const band = (W - L - R) / data.length;
+  const barW = Math.min(46, band * 0.62);
+  svg.textContent = '';
+  const el = (name, attrs, text) => {
+    const e = document.createElementNS(ns, name);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    svg.appendChild(e);
+    return e;
+  };
+  for (let i = 0; i <= 4; i++) {
+    const v = nice * i / 4;
+    el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: i ? 'var(--grid)' : 'var(--axis)' });
+    el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--muted)' }, money(v));
+  }
+  const tip = document.getElementById('tooltip');
+  const wrap = document.getElementById('chart-wrap');
+  data.forEach((d, i) => {
+    const cx = L + band * i + band / 2;
+    const x0 = cx - barW / 2;
+    const isInput = d.users === state.users;
+    // bottom segment: database and servers
+    const hBottom = y(0) - y(d.servers);
+    el('rect', { x: x0, y: y(d.servers), width: barW, height: Math.max(hBottom, 0), fill: c1 });
+    // top segment: AI, 2px gap, rounded top
+    const hTop = y(d.servers) - y(d.total) - 2;
+    if (hTop > 0) {
+      const top = y(d.total);
+      el('path', {
+        d: `M${x0},${top + hTop} V${top + 4} Q${x0},${top} ${x0 + 4},${top} H${x0 + barW - 4} Q${x0 + barW},${top} ${x0 + barW},${top + 4} V${top + hTop} Z`,
+        fill: c2,
+      });
+    }
+    el('text', {
+      x: cx, y: H - B + 18, 'text-anchor': 'middle', 'font-size': 12,
+      fill: isInput ? 'var(--ink)' : 'var(--muted)', 'font-weight': isInput ? 700 : 400,
+    }, d.users >= 1000 ? (d.users / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'k' : nf0.format(d.users));
+    if (isInput) el('text', { x: cx, y: H - B + 34, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--ink-2)' }, 'your input');
+    const hit = el('rect', { x: L + band * i, y: T, width: band, height: H - T - B, fill: 'transparent', tabindex: 0 });
+    const show = () => {
+      tip.textContent = '';
+      const title = document.createElement('div');
+      title.style.marginBottom = '4px';
+      title.textContent = nf0.format(d.users) + ' registered users';
+      tip.appendChild(title);
+      const add = (color, name, value) => {
+        const row = document.createElement('div'); row.className = 'row';
+        const left = document.createElement('span');
+        if (color) { const k = document.createElement('span'); k.className = 'k'; k.style.background = color; left.appendChild(k); }
+        const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = name;
+        left.appendChild(nm);
+        const v = document.createElement('strong'); v.textContent = value;
+        row.append(left, v);
+        tip.appendChild(row);
+      };
+      add(c1, 'Database and servers', money(d.servers));
+      add(c2, 'AI', money(d.ai));
+      add(null, 'Total', money(d.total));
+      add(null, 'Per user', money(d.perUser));
+      add(null, 'Database size', d.size.name);
+      tip.style.display = 'block';
+      const scale = svg.getBoundingClientRect().width / W;
+      let left = (cx + barW / 2) * scale + 10;
+      if (left + tip.offsetWidth > wrap.clientWidth) left = (cx - barW / 2) * scale - tip.offsetWidth - 10;
+      tip.style.left = left + 'px';
+      tip.style.top = (T * scale) + 'px';
+    };
+    const hide = () => { tip.style.display = 'none'; };
+    hit.addEventListener('pointerenter', show);
+    hit.addEventListener('pointerleave', hide);
+    hit.addEventListener('focus', show);
+    hit.addEventListener('blur', hide);
+  });
+  el('text', { x: (L + W - R) / 2, y: H - 2, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink-2)' }, 'Registered users');
+
+  const legend = document.getElementById('legend');
+  legend.textContent = '';
+  for (const [c, name] of [[c1, 'Database and servers'], [c2, 'AI']]) {
+    const s = document.createElement('span');
+    const k = document.createElement('span'); k.className = 'key'; k.style.background = c;
+    s.append(k, document.createTextNode(name));
+    legend.appendChild(s);
+  }
+
+  const tb = document.getElementById('scenario');
+  tb.textContent = '';
+  for (const d of data) {
+    const tr = document.createElement('tr');
+    [nf0.format(d.users), d.size.name, money(d.servers), money(d.ai), money(d.total), money(d.perUser)].forEach(v => {
+      const td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  }
+}
+
+// Measured or billed values only. Nothing here is an assumption.
+const FACTS = [
+  { value: '$0.0051', label: 'AI, per question', source: 'Measured with the real chatbot, 2026-10-08' },
+  { value: '$287', label: 'Database, per month', source: 'Google Cloud bill, September 2026' },
+  { value: '$5.84', label: 'Other Google Cloud services, per month', source: 'Servers, data pipelines and storage. Bill, September 2026' },
+];
+
+function renderFacts() {
+  const grid = document.getElementById('facts');
+  grid.textContent = '';
+  for (const f of FACTS) {
+    const d = document.createElement('div'); d.className = 'fact';
+    const v = document.createElement('div'); v.className = 'value'; v.textContent = f.value;
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = f.label;
+    const src = document.createElement('div'); src.className = 'source'; src.textContent = f.source;
+    d.append(v, l, src);
+    grid.appendChild(d);
+  }
+}
+
+function renderAssumptions() {
+  const list = [
+    'Database limit after average optimization (caching, indexes, faster queries): ' + DB_SIZES[0].usersAtOnce + ' users at the same time. This is 4 times the limit measured in the load test (50). It is not the best case and not the worst case.',
+    'Next database size: ' + DB_SIZES[1].name + ', about ' + money(DB_SIZES[1].cost) + ' a month, up to ' + DB_SIZES[1].usersAtOnce + ' users at the same time. Estimate: more CPU, same memory.',
+    'We keep ' + (FREE_CAPACITY * 100) + '% of the database capacity free for short peaks.',
+    'Visits are spread evenly over the 24 hours of a day. One visit lasts ' + VISIT_MINUTES + ' minutes.',
+    'Every user uses the full AI limit every month.',
+    'Not included: salaries, payment fees, email and other tools.',
+  ];
+  const ul = document.getElementById('assumptions');
+  ul.textContent = '';
+  for (const t of list) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+}
+
+/* ---------- Wiring ---------- */
+const fields = ['users', 'dailyShare', 'questions'];
+function writeInputs() { for (const f of fields) document.getElementById(f).value = state[f] ?? ''; }
+function update() {
+  save();
+  const tooHigh = state.dailyShare !== null && state.dailyShare > 100;
+  document.getElementById('empty-text').textContent = tooHigh
+    ? 'Users who visit each day must be between 0 and 100%.'
+    : 'Enter the 3 numbers above to see the costs.';
+  const ready = !tooHigh && fields.every(f => state[f] !== null) && state.users > 0;
+  document.getElementById('results').hidden = !ready;
+  document.getElementById('empty-msg').hidden = ready;
+  if (!ready) return;
+  const r = calc(state.users, state.dailyShare, state.questions);
+  renderTotals(r);
+  renderBreakdown(r);
+  renderDatabase(r);
+  renderChart();
+}
+for (const f of fields) {
+  document.getElementById(f).addEventListener('input', e => {
+    const v = e.target.value === '' ? null : Number(e.target.value);
+    state[f] = v !== null && isFinite(v) && v >= 0 ? v : null;
+    update();
+  });
+}
+document.getElementById('reset').addEventListener('click', () => { state = Object.assign({}, DEFAULTS); writeInputs(); update(); });
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.getElementById('results').hidden) renderChart(); });
+
+writeInputs();
+renderFacts();
+renderAssumptions();
+update();
+</script>
+</body>
+</html>
